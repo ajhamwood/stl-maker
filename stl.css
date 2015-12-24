@@ -1,0 +1,75 @@
+html, body, main {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  font-family: monospace;
+  overflow: hidden
+}
+#container {
+  position: absolute;
+  background: #000;
+  width: 100%;
+  z-index: 0;
+  height: 100%;
+  overflow: hidden
+}
+#navigation {
+  position: absolute;
+  right: 0;
+  width: 300px;
+  max-width: 40%;
+  height: 100%;
+  background: lightskyblue
+}
+#navigation > * {
+  margin: 1em 1em 0 1em;
+}
+button {
+  cursor: pointer
+}
+#toggle {
+  position: absolute;
+  top: 1em;
+  right: 1em;
+  z-index: 1;
+  width: 1.5em;
+  height: 1.5em;
+  text-align: center;
+  background: cadetblue;
+  line-height: 1.5em;
+  cursor: pointer
+}
+.plus::before {
+  content: "+"
+}
+.minus::before {
+  content: "-"
+}
+label {
+  display: block
+}
+textarea {
+  width: calc(100% - 2.6em - 2px);
+  padding: .3em;
+  resize: vertical
+}
+#equation {
+  height: 8em
+}
+#range_equation {
+  height: 4em
+}
+input:not([type]) {
+  width: calc(150px - 4em)
+}
+input + span {
+  margin: 0 !important
+}
+.hide {
+  top: 100%;
+  transition: top .5s ease
+}
+.show {
+  top: 0;
+  transition: top .5s ease
+}
