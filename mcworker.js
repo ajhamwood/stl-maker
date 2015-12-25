@@ -1,14 +1,24 @@
-importScripts("three.min.js", "geom.js", "mclookup.js");
-renderer.render(scene, camera);
+self.importScripts("three.min.js", "geom.js", "mclookup.js");
 
-///ArrayBuff...///
-
-onmessage = function(e) {
-  var fun = e.data[0], d = [ e.data[1], e.data[2], e.data[3], e.data[4], e.data[5], e.data[6] ],
-      size = e.data[7], rfun = e.data[8];
-  var f = new Function("x, y, z", "return " + fun);
-  if (rfun) var g = new Function("x, y, z", "return " + rfun);
-  
-  postMessage(JSON.stringify( marcubes(f, d, size, g) ));
-  close()
+self.onmessage = function(evt) {
+  var geom, req = self.indexedDB.open("stl", 1);
+  req.onsuccess = function (e) {
+    var db = this.result, tx = db.transaction("data", "readwrite"), store = tx.objectStore("data");
+    store.openCursor().onsuccess = function (e) {
+      var csr = e.target.result;
+      var rfun = csr.value.rfun;
+      if (rfun) var g = new Function("x, y, z", "return " + rfun);
+      var result = marcubes(new Function("x, y, z", "return " + csr.value.fun), csr.value.r, csr.value.size, g, evt.data);
+      geom = result[0];
+      csr.value.count = result[1];
+      csr.update(csr.value)
+    }
+    tx.oncomplete = function (e) {
+      self.postMessage(geom, [geom]);
+      close()
+    }
+  };
+  req.onerror = function(e) {
+    close()
+  }
 }
