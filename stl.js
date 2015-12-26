@@ -1,3 +1,8 @@
+function $ (sel, node, a) { return (a = [].slice.call( (node || document).querySelectorAll(sel) )).length > 1 ? a : a[0] }
+
+var container = $("#container"),
+    width = container.clientWidth,
+    height = container.clientHeight;
 var view_angle = 45,
 	aspect = width / height,
 	near = 0.01,
@@ -9,7 +14,7 @@ var scene = new THREE.Scene();
 scene.add(camera);
 renderer.setSize(width, height);
 
-var geom = {}, material;
+var geom, material;
 function updateMaterial() {
   material = new THREE.MeshNormalMaterial();
   material.side = THREE.DoubleSide
@@ -21,7 +26,6 @@ pointLight.position.y = 5;
 pointLight.position.z = 17;
 scene.add(pointLight);
 
-///
 var mouse_down = false,
     mouseX = 0,
     mouseXOnMouseDown = 0,
@@ -66,6 +70,22 @@ function animate() {
 }
 animate();
 
+function getData () {
+  return {
+    equation: $("#equation").value,
+    range: [
+      parseFloat($("#range_lx").value),
+      parseFloat($("#range_ux").value),
+      parseFloat($("#range_ly").value),
+      parseFloat($("#range_uy").value),
+      parseFloat($("#range_lz").value),
+      parseFloat($("#range_uz").value)
+    ],
+    mask: $("#mask-eq").checked ? $("#mask-equation").value : null,
+    granularity: $("#granularity").value
+  }
+}
+
 var mcworker
 if (window.Worker) {
   var req = indexedDB.open("stl", 1), db;
@@ -75,7 +95,7 @@ if (window.Worker) {
   }
   req.onsuccess = function (e) {
     db = e.target.result;
-    $("#run").dispatchEvent(new Event("click"));
+    //$("#run").dispatchEvent(new Event("click"));
   }
 }
 function init_worker() {
@@ -104,6 +124,40 @@ function init_worker() {
     }
   }
 }
+
+var preset_prev = 0, presets = {}, preset_lib = {
+  "Kummer Quartic": {
+    equation: "pow((x*x+y*y+z*z-1.7), 2)-(3*1.7-1)/(3-1.7)*(sqrt(2)*x-z+1)*(sqrt(2)*x+z-1)*(sqrt(2)*y-z-1)*(sqrt(2)*y+z+1)-.06=0",
+    range: [-1.6,1.6,-1.6,1.6,-1.6,1.6],
+    mask: "x*x+y*y+z*z-2.5<0",
+    granularity: 40
+  },
+  "Cayley Cubic": {
+    equation: "x*x+y*y+z*z-x*x*z+y*y*z-1.05=0",
+    range: [-2.5,2.5,-2.5,2.5,-2.5,2.5],
+    mask: "x*x+y*y+z*z-7<0",
+    granularity: 40
+  },
+  "Barth Sextic": {
+    equation: "4*(x*x-z*z*(1.5+sqrt(5)/2))*(z*z-y*y*(1.5+sqrt(5)/2))*(y*y-x*x*(1.5+sqrt(5)/2))+(2+sqrt(5))*pow(x*x+y*y+z*z-1.008,2)-.05=0",
+    range: [-2.1,2.1,-2.1,2.1,-2.1,2.1],
+    mask: "x*x+y*y+z*z-4.4<0",
+    granularity: 100
+  },
+  "Barth Decic": {
+    equation: "8*(x*x-(3.5+1.5*sqrt(5))*y*y)*(y*y-(3.5+1.5*sqrt(5))*z*z)*(z*z-(3.5+1.5*sqrt(5))*x*x)*(x*x*x*x+y*y*y*y+z*z*z*z-2*x*x*y*y-2*x*x*z*z-2*y*y*z*z)+(5.5+2.5*sqrt(5))*pow(x*x+y*y+z*z-1.05,2)*pow(x*x+y*y+z*z-(1.5-.5*sqrt(5))-.02,2)-.005=0",
+    range: [-2.5,2.5,-2.5,2.5,-2.5,2.5],
+    mask: "x*x+y*y+z*z-5<0",
+    granularity: 160
+  }
+}, libkeys = Object.keys(preset_lib);
+for (var i = 0, k; i < libkeys.length; i++) {
+  if (!((k = libkeys[i]) in localStorage)) localStorage[k] = JSON.stringify(preset_lib[k])
+}
+for (i = 0; i < localStorage.length; i++) {
+  $("#presets > optgroup:first-child").appendChild($("#new-preset").firstChild.cloneNode(false)).label = localStorage.key(i)
+}
+$("#presets")[0].selected = true;
 
 /**
  * STLBinaryExporter:
@@ -221,40 +275,18 @@ addEvents({
   },
   "#run": {
     click: function () {
-      var equation = $("#equation").value,
-          ls_equation = equation.split("="),
-          fun = new Function("x, y, z", "return " + ls_equation[0]),
-          range_fun, ls_range_equation;
-      if ($("#range-eq").checked) {
-        var range_equation = $("#range-equation").value,
-            ls_range_equation = range_equation.split("<");
-        range_fun = new Function("x, y, z", "return " + ls_range_equation[0]);
-      }
-      var r = [
-        parseFloat($('#range_lx').value),
-        parseFloat($('#range_ux').value),
-        parseFloat($('#range_ly').value),
-        parseFloat($('#range_uy').value),
-        parseFloat($('#range_lz').value),
-        parseFloat($('#range_uz').value)
-      ];
+      var data = getData(), r = data.range;
       camera.position.z = 2*sqrt(Math.max(r[0]*r[0], r[1]*r[1]) + Math.max(r[2]*r[2], r[3]*r[3]) + Math.max(r[4]*r[4], r[5]*r[5]));
       if (window.Worker) {
         init_worker();
         var tx = db.transaction("data", "readwrite"), store = tx.objectStore("data");
         tx.oncomplete = function (e) {
-          var buf = new ArrayBuffer(1024*1024*32), view = new Float32Array(buf);
-          view[0] = pi;
+          var buf = new ArrayBuffer(1024*1024*32);
           mcworker.postMessage(buf, [buf])
-        }
-        store.add({
-          fun: ls_equation[0],
-          r: r,
-          size: parseInt($("#size").value),
-          rfun: ls_range_equation ? ls_range_equation[0] : null
-        })
+        };
+        store.add(data)
       } else {
-        geom = marcubes(fun, r, parseInt($("#size").value), range_fun);
+        geom = marcubes(data);
         geom.computeFaceNormals();
         updateMaterial();
         create_object()
@@ -276,8 +308,71 @@ addEvents({
       $("#navigation").classList.toggle("show");
       return false;
     }
+  },
+  "#presets": {
+    change: function (e) {
+      if (!($("#presets")[preset_prev].label in presets || $("#presets")[preset_prev].label in localStorage)) {
+        presets[$("#presets")[preset_prev].label] = getData();
+      }
+      $("#preset-method").textContent = "Delete preset";
+      if (e.target.selectedIndex === e.target.options.length - 1) {
+        $("#preset-name").classList.toggle("hide");
+        $("#preset-name").focus();
+        preset = { equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 };
+        $("#mask-equation").value = "";
+        $("#preset-method").textContent = "Save as preset"
+      } else if ($("#presets > optgroup:first-child").childNodes.length > e.target.selectedIndex) {
+        var preset = JSON.parse(localStorage[$("#presets").selectedOptions[0].label]);
+        preset_prev = e.target.selectedIndex
+      } else {
+        preset = presets[$("#presets").selectedOptions[0].label]
+        preset_prev = e.target.selectedIndex
+      }
+      $("#equation").value = preset.equation;
+      $("#range_lx").value = preset.range[0];
+      $("#range_ux").value = preset.range[1];
+      $("#range_ly").value = preset.range[2];
+      $("#range_uy").value = preset.range[3];
+      $("#range_lz").value = preset.range[4];
+      $("#range_uz").value = preset.range[5];
+      $("#mask-eq").checked = !!preset.mask;
+      $("#mask-equation").value = preset.mask;
+      $("#granularity").value = preset.granularity
+    }
+  },
+  "#preset-name": {
+    blur: function (e) {
+      if ($("#preset-name").value === "") {
+        $("#presets")[preset_prev].selected = true;
+        $("#presets").dispatchEvent(new Event("change"))
+      } else {
+        $("#presets > optgroup:last-child > option:last-child").label = $("#preset-name").value;
+        $("#presets > optgroup:last-child").appendChild($("#new-preset").firstChild.cloneNode(false));
+        $("#preset-name").value = ""
+        preset_prev = $("#presets").selectedIndex
+      }
+      $("#preset-name").classList.toggle("hide")
+    },
+    keyup: function (e) {
+      if (e.keyCode === 27) this.blur(e)
+    }
+  },
+  "#preset-method": {
+    click: function (e) {
+      var name = $("#presets").selectedOptions[0].label;
+      if ($("#presets").selectedIndex === $("#presets").options.length - 2) {
+        localStorage[name] = JSON.stringify(getData());
+        $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
+        $("#preset-method").textContent = "Delete preset"
+      } else {
+        delete localStorage[name];
+        $("#presets > optgroup:first-child").removeChild($("#presets").selectedOptions[0])
+      }
+    }
   }
 });
+
+$("#presets").dispatchEvent(new Event("change"));
 
 var THREEx = THREEx || {};
 THREEx.WindowResize	= function (renderer, camera) {

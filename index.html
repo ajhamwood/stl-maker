@@ -7,30 +7,49 @@
   </head>
   <body>
     <main>
+      <!--
+
+TO DO:
+  Origin lock for range input
+  Multithread progress bar
+  Calculation time estimate
+  Navi design
+  Term sliders
+  Quaternion rotation
+
+      -->
       <div id="container"></div>
       <div id="toggle" class="minus"></div>
-      <div id="navigation" class="show">
+      <nav id="navigation" class="show">
         <button id="run">Graph</button>
         <button id="save">Save as .stl</button>
+        <select id="presets">
+          <optgroup label="Presets"></optgroup>
+          <optgroup label="Save as preset">
+            <option label="New"></option>
+          </optgroup>
+        </select>
+        <input id="preset-name" class="hide" placeholder="Required field!">
+        <button id="preset-method"></button>
         <label>Equation of the form f(x, y, z) = 0</label>
-        <textarea id="equation">pow((x*x+y*y+z*z-1.7), 2)-(3*1.7-1)/(3-1.7)*(sqrt(2)*x-z+1)*(sqrt(2)*x+z-1)*(sqrt(2)*y-z-1)*(sqrt(2)*y+z+1)-.06=0</textarea>
+        <textarea id="equation"></textarea>
         <div>Functions and constants available: sin, cos, tan, exp, pow, sqrt, abs, ln, asin, acos, atan, pi.</div>
         <label>Range</label>
-        <input id="range_lx" value="-1.6"><span>&lt; x &le;</span><input id="range_ux" value="1.6">
-        <input id="range_ly" value="-1.6"><span>&lt; y &le;</span><input id="range_uy" value="1.6">
-        <input id="range_lz" value="-1.6"><span>&lt; z &le;</span><input id="range_uz" value="1.6">
-        <input type="checkbox" id="range-eq" checked><span>Range equation of the form f(x, y, z) &lt; 0</span>
-        <textarea id="range-equation">x*x+y*y+z*z-2.5&lt;0</textarea>
+        <!--input type="checkbox" id="origin-lock" checked-->
+        <input id="range_lx"><span>&lt; x &le;</span><input id="range_ux">
+        <input id="range_ly"><span>&lt; y &le;</span><input id="range_uy">
+        <input id="range_lz"><span>&lt; z &le;</span><input id="range_uz">
+        <input type="checkbox" id="mask-eq"><span>Bounding equation of the form f(x, y, z) &lt; 0</span>
+        <textarea id="mask-equation"></textarea>
         <label>Granularity</label>
-        <input id="size" value="40">
-      </div>
+        <input id="granularity">
+      </nav>
     </main>
+    <div id="stamps" class="hide">
+      <div id="new-preset"><option label="New"></option></div>
+    </div>
     <script src="three.min.js"></script>
     <script src="filesaver.min.js"></script>
-    <script>
-      function $ (sel, node, a) { return (a = [].slice.call( (node || document).querySelectorAll(sel) )).length > 1 ? a : a[0] }
-      var container = $("#container"), width = container.clientWidth, height = container.clientHeight
-    </script>
     <script src="geom.js"></script>
     <script src="mclookup.js"></script>
     <script src="stl.js"></script>

@@ -7,7 +7,11 @@ var sin = Math.sin, cos = Math.cos, tan = Math.tan, exp = Math.exp, pow = Math.p
 * Port of greggman's ThreeD version of marching cubes to Three.js
 * http://webglsamples.googlecode.com/hg/blob/blob.html
 */
-function marcubes(f, d, size, g, geom) {
+function marcubes(data, geom) {
+  var f = new Function("x, y, z", "return " + data.equation.split("=")[0]),
+      d = data.range, size = parseInt(data.granularity), mask, g;
+  if (mask = data.mask) g = new Function("x, y, z", "return " + mask.split("<")[0]);
+  
   var points = [], vals = [], i, j, k, x, y, z,
       vidx = 0, ins = typeof g === "function", flag;
   var xm = d[0], xr = d[1] - d[0], ym = d[2], yr = d[3] - d[2], zm = d[4], zr = d[5] - d[4];
@@ -20,6 +24,7 @@ function marcubes(f, d, size, g, geom) {
         face = geom.faces,
         uvs = geom.faceVertexUvs[0]
   }
+  
   for (k = 0; k < size; k++)
   for (j = 0; j < size; j++)
   for (i = 0; i < size; i++) {
