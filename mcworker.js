@@ -3,7 +3,7 @@ self.importScripts("three.min.js", "geom.js", "mclookup.js");
 self.onmessage = function(evt) {
   var geom, req = self.indexedDB.open("stl", 1);
   req.onsuccess = function (e) {
-    var db = this.result, tx = db.transaction("data", "readwrite"), store = tx.objectStore("data");
+    var db = this.result, tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
     store.openCursor().onsuccess = function (e) {
       var csr = e.target.result;
       var result = marcubes(csr.value, evt.data);

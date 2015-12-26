@@ -60,7 +60,7 @@ function create_object() {
   obj = objnew;
 }
 
-function animate() {
+function animate () {
   if(obj) {
     obj.rotation.y += (targetRotationX - obj.rotation.y) * rotationDecay;
     obj.rotation.x += (targetRotationY - obj.rotation.x) * rotationDecay;
@@ -70,8 +70,8 @@ function animate() {
 }
 animate();
 
-function getData () {
-  return {
+function getData (name) {
+  var data = {
     equation: $("#equation").value,
     range: [
       parseFloat($("#range_lx").value),
@@ -83,27 +83,54 @@ function getData () {
     ],
     mask: $("#mask-eq").checked ? $("#mask-equation").value : null,
     granularity: $("#granularity").value
+  };
+  if (typeof name !== "undefined") data.name = name;
+  return data
+}
+
+var req = indexedDB.open("stl", 1), db;
+req.onupgradeneeded = function (e) {
+  db = e.target.result;
+  db.createObjectStore("worker", { autoIncrement: true });
+  var pstore = db.createObjectStore("presets", { autoIncrement: true });
+  pstore.createIndex("name", "name", { unique: true })
+}
+req.onsuccess = function (e) {
+  db = e.target.result;
+  var tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
+  store.openCursor().onsuccess = function (e) {
+    function opt(n) {
+      var o = $("#presets > optgroup:first-child").appendChild($("#new-preset").firstChild.cloneNode(false));
+      return o.label = o.textContent = n
+    }
+    var csr = e.target.result;
+    if (csr) {
+      preset_stored[ opt(csr.value.name) ] = csr.value;
+      delete preset_lib[csr.value.name];
+      csr.continue()
+    } else {
+      for (k in preset_lib) {
+        store.add(preset_lib[k]);
+        preset_stored[ opt(preset_lib[k].name) ] = preset_lib[k];
+        delete preset_stored[preset_lib[k].name].name;
+        delete preset_lib[k]
+      }
+    }
+  }
+  tx.oncomplete = function (e) {
+    $("#presets")[0].selected = true;
+    $("#presets").dispatchEvent(new Event("change"));
+    $("#run").dispatchEvent(new Event("click"))
   }
 }
 
 var mcworker
-if (window.Worker) {
-  var req = indexedDB.open("stl", 1), db;
-  req.onupgradeneeded = function (e) {
-    db = e.target.result;
-    var store = db.createObjectStore("data", { autoIncrement: true });
-  }
-  req.onsuccess = function (e) {
-    db = e.target.result;
-    //$("#run").dispatchEvent(new Event("click"));
-  }
-}
 function init_worker() {
   mcworker = new Worker("mcworker.js");
   mcworker.onmessage = function (e) {
     geom = new THREE.Geometry();
-    var vert = new Float32Array(e.data);        
-    var tx = db.transaction("data", "readwrite"), store = tx.objectStore("data");
+    var vert = new Float32Array(e.data);
+    var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
     store.openCursor().onsuccess = function (e) {
       var csr = e.target.result, i = 0, c = 0;
       while (i < csr.value.count) {
@@ -125,39 +152,36 @@ function init_worker() {
   }
 }
 
-var preset_prev = 0, presets = {}, preset_lib = {
+var preset_prev = 0, preset_tmp = {}, preset_stored = {}, preset_lib = {
   "Kummer Quartic": {
+    name: "Kummer Quartic",
     equation: "pow((x*x+y*y+z*z-1.7), 2)-(3*1.7-1)/(3-1.7)*(sqrt(2)*x-z+1)*(sqrt(2)*x+z-1)*(sqrt(2)*y-z-1)*(sqrt(2)*y+z+1)-.06=0",
     range: [-1.6,1.6,-1.6,1.6,-1.6,1.6],
     mask: "x*x+y*y+z*z-2.5<0",
     granularity: 40
   },
   "Cayley Cubic": {
+    name: "Cayley Cubic",
     equation: "x*x+y*y+z*z-x*x*z+y*y*z-1.05=0",
     range: [-2.5,2.5,-2.5,2.5,-2.5,2.5],
     mask: "x*x+y*y+z*z-7<0",
     granularity: 40
   },
   "Barth Sextic": {
+    name: "Barth Sextic",
     equation: "4*(x*x-z*z*(1.5+sqrt(5)/2))*(z*z-y*y*(1.5+sqrt(5)/2))*(y*y-x*x*(1.5+sqrt(5)/2))+(2+sqrt(5))*pow(x*x+y*y+z*z-1.008,2)-.05=0",
     range: [-2.1,2.1,-2.1,2.1,-2.1,2.1],
     mask: "x*x+y*y+z*z-4.4<0",
     granularity: 100
   },
   "Barth Decic": {
+    name: "Barth Decic",
     equation: "8*(x*x-(3.5+1.5*sqrt(5))*y*y)*(y*y-(3.5+1.5*sqrt(5))*z*z)*(z*z-(3.5+1.5*sqrt(5))*x*x)*(x*x*x*x+y*y*y*y+z*z*z*z-2*x*x*y*y-2*x*x*z*z-2*y*y*z*z)+(5.5+2.5*sqrt(5))*pow(x*x+y*y+z*z-1.05,2)*pow(x*x+y*y+z*z-(1.5-.5*sqrt(5))-.02,2)-.005=0",
     range: [-2.5,2.5,-2.5,2.5,-2.5,2.5],
     mask: "x*x+y*y+z*z-5<0",
     granularity: 160
   }
-}, libkeys = Object.keys(preset_lib);
-for (var i = 0, k; i < libkeys.length; i++) {
-  if (!((k = libkeys[i]) in localStorage)) localStorage[k] = JSON.stringify(preset_lib[k])
-}
-for (i = 0; i < localStorage.length; i++) {
-  $("#presets > optgroup:first-child").appendChild($("#new-preset").firstChild.cloneNode(false)).label = localStorage.key(i)
-}
-$("#presets")[0].selected = true;
+};
 
 /**
  * STLBinaryExporter:
@@ -279,7 +303,7 @@ addEvents({
       camera.position.z = 2*sqrt(Math.max(r[0]*r[0], r[1]*r[1]) + Math.max(r[2]*r[2], r[3]*r[3]) + Math.max(r[4]*r[4], r[5]*r[5]));
       if (window.Worker) {
         init_worker();
-        var tx = db.transaction("data", "readwrite"), store = tx.objectStore("data");
+        var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
         tx.oncomplete = function (e) {
           var buf = new ArrayBuffer(1024*1024*32);
           mcworker.postMessage(buf, [buf])
@@ -311,9 +335,6 @@ addEvents({
   },
   "#presets": {
     change: function (e) {
-      if (!($("#presets")[preset_prev].label in presets || $("#presets")[preset_prev].label in localStorage)) {
-        presets[$("#presets")[preset_prev].label] = getData();
-      }
       $("#preset-method").textContent = "Delete preset";
       if (e.target.selectedIndex === e.target.options.length - 1) {
         $("#preset-name").classList.toggle("hide");
@@ -321,12 +342,18 @@ addEvents({
         preset = { equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 };
         $("#mask-equation").value = "";
         $("#preset-method").textContent = "Save as preset"
-      } else if ($("#presets > optgroup:first-child").childNodes.length > e.target.selectedIndex) {
-        var preset = JSON.parse(localStorage[$("#presets").selectedOptions[0].label]);
-        preset_prev = e.target.selectedIndex
       } else {
-        preset = presets[$("#presets").selectedOptions[0].label]
-        preset_prev = e.target.selectedIndex
+        var label = $("#presets")[preset_prev].label, preset;
+        if (!(label in preset_tmp || label in preset_stored)) {
+          preset_tmp[label] = getData(label);
+        }
+        if ($("#presets > optgroup:first-child").childNodes.length > e.target.selectedIndex) {
+          preset = preset_stored[$("#presets").selectedOptions[0].label];
+          preset_prev = e.target.selectedIndex
+        } else {
+          preset = preset_tmp[$("#presets").selectedOptions[0].label]
+          preset_prev = e.target.selectedIndex
+        }
       }
       $("#equation").value = preset.equation;
       $("#range_lx").value = preset.range[0];
@@ -346,7 +373,8 @@ addEvents({
         $("#presets")[preset_prev].selected = true;
         $("#presets").dispatchEvent(new Event("change"))
       } else {
-        $("#presets > optgroup:last-child > option:last-child").label = $("#preset-name").value;
+        $("#presets > optgroup:last-child > option:last-child").label =
+          $("#presets > optgroup:last-child > option:last-child").textContent = $("#preset-name").value;
         $("#presets > optgroup:last-child").appendChild($("#new-preset").firstChild.cloneNode(false));
         $("#preset-name").value = ""
         preset_prev = $("#presets").selectedIndex
@@ -359,20 +387,24 @@ addEvents({
   },
   "#preset-method": {
     click: function (e) {
-      var name = $("#presets").selectedOptions[0].label;
-      if ($("#presets").selectedIndex === $("#presets").options.length - 2) {
-        localStorage[name] = JSON.stringify(getData());
+      var name = $("#presets").selectedOptions[0].label,
+          tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
+      if ($("#presets > optgroup:last-child > [label='" + name + "']")) {
+        preset_stored[name] = getData(name);
+        store.add(preset_stored[name]);
         $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
         $("#preset-method").textContent = "Delete preset"
       } else {
-        delete localStorage[name];
-        $("#presets > optgroup:first-child").removeChild($("#presets").selectedOptions[0])
+        delete preset_stored[name];
+        store.index("name").openCursor(IDBKeyRange.only(name)).onsuccess = function (e) {
+          var csr = e.target.result;
+          if (csr) store.delete(csr.primaryKey)
+        };
+        $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
       }
     }
   }
 });
-
-$("#presets").dispatchEvent(new Event("change"));
 
 var THREEx = THREEx || {};
 THREEx.WindowResize	= function (renderer, camera) {
