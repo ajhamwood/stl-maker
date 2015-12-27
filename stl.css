@@ -13,6 +13,16 @@ html, body, main {
   height: 100%;
   overflow: hidden
 }
+#progress {
+  position: absolute;
+  bottom: 10px;
+  left: 2%;
+  width: 96%;
+  z-index: 1
+}
+progress {
+  width: 100%
+}
 #navigation {
   position: absolute;
   right: 0;
@@ -64,7 +74,7 @@ textarea {
 #equation {
   height: 8em
 }
-#range_equation {
+#mask-equation {
   height: 4em
 }
 input:not([type]) {

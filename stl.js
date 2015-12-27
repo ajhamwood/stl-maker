@@ -147,6 +147,24 @@ addEvents({
         targetRotationY = targetRotationOnMouseDownY + (mouseY - mouseYOnMouseDown) * rotationSensitivity;
         targetRotationX = targetRotationOnMouseDownX + (mouseX - mouseXOnMouseDown) * rotationSensitivity
       }
+    },
+    documentTouchStart: function (event) {
+      if ( event.touches.length === 1 ) {
+        event.preventDefault();
+        mouseXOnMouseDown = event.touches[0].pageX - windowHalfX;
+        targetRotationOnMouseDownX = targetRotationX;
+        mouseYOnMouseDown = event.touches[0].pageY - windowHalfY;
+        targetRotationOnMouseDownY = targetRotationY;
+      }
+    },
+    documentTouchMove: function (event) {
+      if ( event.touches.length === 1 ) {
+        event.preventDefault();
+        mouseX = event.touches[0].pageX - windowHalfX;
+        targetRotationX = targetRotationOnMouseDownX + (mouseX - mouseXOnMouseDown) * rotationSensitivity;
+        mouseY = event.touches[0].pageY - windowHalfY;
+        targetRotationY = targetRotationOnMouseDownY + (mouseY - mouseYOnMouseDown) * rotationSensitivity;
+      }
     }
   }
 });
@@ -234,11 +252,17 @@ var mcworker;
 function init_worker() {
   mcworker = new Worker("mcworker.js");
   mcworker.onmessage = function (e) {
+    var i = 0, c = 0, div;
+    if (typeof e.data !== "object") return $("progress").value = e.data;
     geom = new THREE.Geometry();
     var vert = new Float32Array(e.data);
-    var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
-    store.openCursor().onsuccess = function (e) {
-      var csr = e.target.result, i = 0, c = 0, count = csr.value.count;
+    var tx = db.transaction("worker", "readwrite"), csr = tx.objectStore("worker").openCursor();
+    csr.onsuccess = function (e) {
+      count = csr.result.value.count;
+      div = Math.floor(count / 25);
+    };
+    tx.oncomplete = function () { setTimeout(build_object, 0) };
+    function build_object () {
       while (i < count) {
         geom.vertices.push(
           new THREE.Vector3(vert[i], vert[i+1], vert[i+2]),
@@ -249,10 +273,13 @@ function init_worker() {
         geom.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)]);
         i = i+9;
         c = c+3;
+        if (i % div < 9) {
+          $("progress").value = 2/3 + i / count / 3;
+          return setTimeout(build_object, 0)
+        }
       }
-      store.clear();
-    }
-    tx.oncomplete = function (e) {
+      db.transaction("worker", "readwrite").objectStore("worker").clear();
+      $("#progress").classList.toggle("hide")
       geom.computeFaceNormals();
       updateMaterial();
       create_object()
@@ -300,6 +327,8 @@ addEvents({
         init_worker();
         var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
         tx.oncomplete = function (e) {
+          $("#progress").classList.toggle("hide");
+          $("progress").value = 0;
           var buf = new ArrayBuffer(1024*1024*32);
           mcworker.postMessage(buf, [buf])
         };
