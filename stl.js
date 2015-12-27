@@ -1,24 +1,63 @@
+/**
+ * @author den-chan | den-chan.github.io | den-chan@tuta.io
+ * Based on the implicit 3d grapher by guska076 at https://developer.mozilla.org/en-US/demos/detail/implicit-equation-3d-grapher/launch
+ */
+
+var THREEx = THREEx || {};
+THREEx.WindowResize = function (renderer, camera) {
+  var callback = function () {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", callback, false);
+  return {
+    stop: function () {
+      window.removeEventListener("resize", callback);
+    }
+  };
+};
+
+///Utilities
 function $ (sel, node, a) { return (a = [].slice.call( (node || document).querySelectorAll(sel) )).length > 1 ? a : a[0] }
 
+function addEvents (obj) {
+  for (var id in obj) for (var e in obj[id]) {
+    var el = id ? $(id) : window, a = e.split(" "), b = a.length, c = 0;
+    for (; c < b; c++) el.addEventListener(a[c], obj[id][e].bind(el), false)
+  }
+}
+
+///Navigation
+addEvents({
+  "#toggle": {
+    click: function () {
+      this.classList.toggle("plus");
+      this.classList.toggle("minus");
+      $("#navigation").classList.toggle("hide");
+      $("#navigation").classList.toggle("show");
+      return false;
+    }
+  }
+});
+
+///THREE.js scene
 var container = $("#container"),
     width = container.clientWidth,
     height = container.clientHeight;
 var view_angle = 45,
-	aspect = width / height,
-	near = 0.01,
-	far = 1000;
+    aspect = width / height,
+    near = 0.01,
+    far = 1000;
 
 var renderer = new THREE.WebGLRenderer({antialias: true});
 var camera = new THREE.PerspectiveCamera(view_angle, aspect, near, far);
 var scene = new THREE.Scene();
+THREEx.WindowResize(renderer, camera);
 scene.add(camera);
 renderer.setSize(width, height);
-
-var geom, material;
-function updateMaterial() {
-  material = new THREE.MeshNormalMaterial();
-  material.side = THREE.DoubleSide
-}
+container.appendChild(renderer.domElement);
+renderer.domElement.id = "renderer";
 
 var pointLight = new THREE.PointLight(0xffffff);
 pointLight.position.x = 6;
@@ -26,24 +65,13 @@ pointLight.position.y = 5;
 pointLight.position.z = 17;
 scene.add(pointLight);
 
-var mouse_down = false,
-    mouseX = 0,
-    mouseXOnMouseDown = 0,
-    mouseY = 0,
-    mouseYOnMouseDown = 0,
-    targetRotationX = 0,
-    targetRotationOnMouseDownX = 0,
-    targetRotationY = 0,
-    targetRotationOnMouseDownY = 0,
-    rotationSensitivity = .02,
-    rotationDecay = .05,
-    windowHalfX = window.innerWidth / 2,
-    windowHalfY = window.innerHeight / 2;
-
-container.appendChild(renderer.domElement);
-renderer.domElement.id = "renderer";
-
+///Rotatable object in scene
+var geom, material;
 updateMaterial();
+function updateMaterial() {
+  material = new THREE.MeshNormalMaterial();
+  material.side = THREE.DoubleSide
+}
 
 var obj;
 function create_object() {
@@ -60,16 +88,82 @@ function create_object() {
   obj = objnew;
 }
 
+var mouse_down = false,
+    mouseX = 0,
+    mouseXOnMouseDown = 0,
+    mouseY = 0,
+    mouseYOnMouseDown = 0,
+    targetRotationX = 0,
+    targetRotationOnMouseDownX = 0,
+    targetRotationY = 0,
+    targetRotationOnMouseDownY = 0,
+    windowHalfX = window.innerWidth / 2,
+    windowHalfY = window.innerHeight / 2;
+addEvents({
+  "": {
+    "DOMMouseScroll, onmousewheel, wheel": function (e) {
+      var delta = 0;
+      e = e || window.event;
+      if (e.wheelDelta) {
+        delta = e.wheelDelta / 120;
+        if (window.opera) delta = -delta
+      } else if (e.detail) delta = -e.detail / 3;
+      if (delta) {
+        if (delta < 0) {
+          obj.scale.x *= 0.9;
+          obj.scale.y *= 0.9;
+          obj.scale.z *= 0.9;
+        } else {
+          obj.scale.x *= 10/9;
+          obj.scale.y *= 10/9;
+          obj.scale.z *= 10/9;
+        }
+      }
+    },
+    resize: function () {
+      THREEx.WindowResize(renderer, camera);
+      windowHalfX = window.innerWidth / 2;
+      windowHalfY = window.innerHeight / 2;
+    }
+  },
+  "#renderer": {
+    mousedown: function (event) {
+      event.preventDefault();
+      mouseXOnMouseDown = event.clientX - windowHalfX;
+      targetRotationOnMouseDownX = targetRotationX;
+      mouseYOnMouseDown = event.clientY - windowHalfY;
+      targetRotationOnMouseDownY = targetRotationY;
+      mouse_down = true
+    },
+    mouseup: function (event) {
+      event.preventDefault();
+      mouse_down = false
+    },
+    mousemove: function (event) {
+      event.preventDefault();
+      if (mouse_down) {
+        mouseX = event.clientX - windowHalfX;
+        mouseY = event.clientY - windowHalfY;
+        targetRotationY = targetRotationOnMouseDownY + (mouseY - mouseYOnMouseDown) * rotationSensitivity;
+        targetRotationX = targetRotationOnMouseDownX + (mouseX - mouseXOnMouseDown) * rotationSensitivity
+      }
+    }
+  }
+});
+
+var rotationSensitivity = .02,
+    rotationDecay = .05;
+animate();
 function animate () {
-  if(obj) {
+  if (obj) {
     obj.rotation.y += (targetRotationX - obj.rotation.y) * rotationDecay;
     obj.rotation.x += (targetRotationY - obj.rotation.x) * rotationDecay;
   }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
-animate();
 
+///Form data -> web worker -> webGL context
 function getData (name) {
   var data = {
     equation: $("#equation").value,
@@ -87,6 +181,18 @@ function getData (name) {
   if (typeof name !== "undefined") data.name = name;
   return data
 }
+function setData (data) {
+  $("#equation").value = data.equation;
+  $("#range_lx").value = data.range[0];
+  $("#range_ux").value = data.range[1];
+  $("#range_ly").value = data.range[2];
+  $("#range_uy").value = data.range[3];
+  $("#range_lz").value = data.range[4];
+  $("#range_uz").value = data.range[5];
+  $("#mask-eq").checked = !!data.mask;
+  $("#mask-equation").value = data.mask;
+  $("#granularity").value = data.granularity
+}
 
 var req = indexedDB.open("stl", 1), db;
 req.onupgradeneeded = function (e) {
@@ -94,7 +200,7 @@ req.onupgradeneeded = function (e) {
   db.createObjectStore("worker", { autoIncrement: true });
   var pstore = db.createObjectStore("presets", { autoIncrement: true });
   pstore.createIndex("name", "name", { unique: true })
-}
+};
 req.onsuccess = function (e) {
   db = e.target.result;
   var tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
@@ -122,9 +228,9 @@ req.onsuccess = function (e) {
     $("#presets").dispatchEvent(new Event("change"));
     $("#run").dispatchEvent(new Event("click"))
   }
-}
+};
 
-var mcworker
+var mcworker;
 function init_worker() {
   mcworker = new Worker("mcworker.js");
   mcworker.onmessage = function (e) {
@@ -132,15 +238,17 @@ function init_worker() {
     var vert = new Float32Array(e.data);
     var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
     store.openCursor().onsuccess = function (e) {
-      var csr = e.target.result, i = 0, c = 0;
-      while (i < csr.value.count) {
+      var csr = e.target.result, i = 0, c = 0, count = csr.value.count;
+      while (i < count) {
         geom.vertices.push(
-          new THREE.Vector3(vert[i++], vert[i++], vert[i++]),
-          new THREE.Vector3(vert[i++], vert[i++], vert[i++]),
-          new THREE.Vector3(vert[i++], vert[i++], vert[i++])
+          new THREE.Vector3(vert[i], vert[i+1], vert[i+2]),
+          new THREE.Vector3(vert[i+3], vert[i+4], vert[i+5]),
+          new THREE.Vector3(vert[i+6], vert[i+7], vert[i+8])
         );
-        geom.faces.push(new THREE.Face3(c++, c++, c++));
-        geom.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)])
+        geom.faces.push(new THREE.Face3(c, c+1, c+2));
+        geom.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)]);
+        i = i+9;
+        c = c+3;
       }
       store.clear();
     }
@@ -183,6 +291,91 @@ var preset_prev = 0, preset_tmp = {}, preset_stored = {}, preset_lib = {
   }
 };
 
+addEvents({
+  "#run": {
+    click: function () {
+      var data = getData(), r = data.range;
+      camera.position.z = 2*sqrt(Math.max(r[0]*r[0], r[1]*r[1]) + Math.max(r[2]*r[2], r[3]*r[3]) + Math.max(r[4]*r[4], r[5]*r[5]));
+      if (window.Worker) {
+        init_worker();
+        var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
+        tx.oncomplete = function (e) {
+          var buf = new ArrayBuffer(1024*1024*32);
+          mcworker.postMessage(buf, [buf])
+        };
+        store.add(data)
+      } else {
+        geom = marcubes(data);
+        geom.computeFaceNormals();
+        updateMaterial();
+        create_object()
+      }
+      return false
+    }
+  },
+  
+  "#presets": {
+    change: function (e) {
+      $("#preset-method").textContent = "Delete preset";
+      if (e.target.selectedIndex === e.target.options.length - 1) {
+        setData({ equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 });
+        $("#preset-name").classList.toggle("hide");
+        $("#preset-name").focus();
+        $("#mask-equation").value = "";
+        $("#preset-method").textContent = "Save as preset"
+      } else {
+        var label = $("#presets")[preset_prev].label;
+        if (!(label in preset_tmp || label in preset_stored)) {
+          preset_tmp[label] = getData(label);
+        }
+        if ($("#presets > optgroup:first-child").childNodes.length > (preset_prev = e.target.selectedIndex)) {
+          setData( preset_stored[$("#presets").selectedOptions[0].label] )
+        } else {
+          setData( preset_tmp[$("#presets").selectedOptions[0].label] )
+        }
+      }
+    }
+  },
+  "#preset-name": {
+    blur: function (e) {
+      if ($("#preset-name").value === "") {
+        $("#presets")[preset_prev].selected = true;
+        $("#presets").dispatchEvent(new Event("change"))
+      } else {
+        $("#presets > optgroup:last-child > option:last-child").label =
+          $("#presets > optgroup:last-child > option:last-child").textContent = $("#preset-name").value;
+        $("#presets > optgroup:last-child").appendChild($("#new-preset").firstChild.cloneNode(false));
+        $("#preset-name").value = ""
+        preset_prev = $("#presets").selectedIndex
+      }
+      $("#preset-name").classList.toggle("hide")
+    },
+    keyup: function (e) {
+      if (e.keyCode === 27) this.blur(e)
+    }
+  },
+  "#preset-method": {
+    click: function (e) {
+      var name = $("#presets").selectedOptions[0].label,
+          tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
+      if ($("#presets > optgroup:last-child > [label='" + name + "']")) {
+        preset_stored[name] = getData(name);
+        store.add(preset_stored[name]);
+        $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
+        $("#preset-method").textContent = "Delete preset"
+      } else {
+        delete preset_stored[name];
+        store.index("name").openCursor(IDBKeyRange.only(name)).onsuccess = function (e) {
+          var csr = e.target.result;
+          if (csr) store.delete(csr.primaryKey)
+        };
+        $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
+      }
+    }
+  }
+});
+
+///Save as .stl
 /**
  * STLBinaryExporter:
  * @author kovacsv / http://kovacsv.hu/
@@ -234,6 +427,10 @@ THREE.STLBinaryExporter.prototype = {
     }
   }()
 };
+
+/**
+ * Based on gist by kjlubick at https://gist.github.com/kjlubick/fb6ba9c51df63ba0951f
+ */
 function saveSTL( scene, name ){  
   var exporter = new THREE.STLBinaryExporter();
   var stlString = exporter.parse( scene );
@@ -241,183 +438,11 @@ function saveSTL( scene, name ){
   saveAs(blob, name + '.stl');
 }
 
-function addEvents (obj) {
-  for (var id in obj) for (var e in obj[id]) {
-    var el = id ? $(id) : window, a = e.split(" "), b = a.length, c = 0;
-    for (; c < b; c++) el.addEventListener(a[c], obj[id][e].bind(el), false)
-  }
-}
 addEvents({
-  "": {
-    "DOMMouseScroll, onmousewheel, wheel": function (e) {
-      var delta = 0;
-      e = e || window.event;
-      if (e.wheelDelta) {
-        delta = e.wheelDelta / 120;
-        if (window.opera) delta = -delta
-      } else if (e.detail) delta = -e.detail / 3;
-      if (delta) {
-        if (delta < 0) {
-          obj.scale.x *= 0.9;
-          obj.scale.y *= 0.9;
-          obj.scale.z *= 0.9;
-        } else {
-          obj.scale.x *= 10/9;
-          obj.scale.y *= 10/9;
-          obj.scale.z *= 10/9;
-        }
-      }
-    },
-    resize: function () {
-      THREEx.WindowResize(renderer, camera);
-      windowHalfX = window.innerWidth / 2;
-      windowHalfY = window.innerHeight / 2;
-    }
-  },
-  "#renderer": {
-    mousedown: function (event) {
-      event.preventDefault();
-      mouseXOnMouseDown = event.clientX - windowHalfX;
-      targetRotationOnMouseDownX = targetRotationX;
-      mouseYOnMouseDown = event.clientY - windowHalfY;
-      targetRotationOnMouseDownY = targetRotationY;
-      mouse_down = true
-    },
-    mouseup: function (event) {
-      event.preventDefault();
-      mouse_down = false
-    },
-    mousemove: function (event) {
-      event.preventDefault();
-      if (mouse_down) {
-        mouseX = event.clientX - windowHalfX;
-        mouseY = event.clientY - windowHalfY;
-        targetRotationY = targetRotationOnMouseDownY + (mouseY - mouseYOnMouseDown) * rotationSensitivity;
-        targetRotationX = targetRotationOnMouseDownX + (mouseX - mouseXOnMouseDown) * rotationSensitivity
-      }
-    }
-  },
-  "#run": {
-    click: function () {
-      var data = getData(), r = data.range;
-      camera.position.z = 2*sqrt(Math.max(r[0]*r[0], r[1]*r[1]) + Math.max(r[2]*r[2], r[3]*r[3]) + Math.max(r[4]*r[4], r[5]*r[5]));
-      if (window.Worker) {
-        init_worker();
-        var tx = db.transaction("worker", "readwrite"), store = tx.objectStore("worker");
-        tx.oncomplete = function (e) {
-          var buf = new ArrayBuffer(1024*1024*32);
-          mcworker.postMessage(buf, [buf])
-        };
-        store.add(data)
-      } else {
-        geom = marcubes(data);
-        geom.computeFaceNormals();
-        updateMaterial();
-        create_object()
-      }
-      return false
-    }
-  },
   "#save": {
     click: function () {
       var name = prompt("Choose filename");
       return saveSTL(scene, name)
     }
-  },
-  "#toggle": {
-    click: function () {
-      this.classList.toggle("plus");
-      this.classList.toggle("minus");
-      $("#navigation").classList.toggle("hide");
-      $("#navigation").classList.toggle("show");
-      return false;
-    }
-  },
-  "#presets": {
-    change: function (e) {
-      $("#preset-method").textContent = "Delete preset";
-      if (e.target.selectedIndex === e.target.options.length - 1) {
-        $("#preset-name").classList.toggle("hide");
-        $("#preset-name").focus();
-        preset = { equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 };
-        $("#mask-equation").value = "";
-        $("#preset-method").textContent = "Save as preset"
-      } else {
-        var label = $("#presets")[preset_prev].label, preset;
-        if (!(label in preset_tmp || label in preset_stored)) {
-          preset_tmp[label] = getData(label);
-        }
-        if ($("#presets > optgroup:first-child").childNodes.length > e.target.selectedIndex) {
-          preset = preset_stored[$("#presets").selectedOptions[0].label];
-          preset_prev = e.target.selectedIndex
-        } else {
-          preset = preset_tmp[$("#presets").selectedOptions[0].label]
-          preset_prev = e.target.selectedIndex
-        }
-      }
-      $("#equation").value = preset.equation;
-      $("#range_lx").value = preset.range[0];
-      $("#range_ux").value = preset.range[1];
-      $("#range_ly").value = preset.range[2];
-      $("#range_uy").value = preset.range[3];
-      $("#range_lz").value = preset.range[4];
-      $("#range_uz").value = preset.range[5];
-      $("#mask-eq").checked = !!preset.mask;
-      $("#mask-equation").value = preset.mask;
-      $("#granularity").value = preset.granularity
-    }
-  },
-  "#preset-name": {
-    blur: function (e) {
-      if ($("#preset-name").value === "") {
-        $("#presets")[preset_prev].selected = true;
-        $("#presets").dispatchEvent(new Event("change"))
-      } else {
-        $("#presets > optgroup:last-child > option:last-child").label =
-          $("#presets > optgroup:last-child > option:last-child").textContent = $("#preset-name").value;
-        $("#presets > optgroup:last-child").appendChild($("#new-preset").firstChild.cloneNode(false));
-        $("#preset-name").value = ""
-        preset_prev = $("#presets").selectedIndex
-      }
-      $("#preset-name").classList.toggle("hide")
-    },
-    keyup: function (e) {
-      if (e.keyCode === 27) this.blur(e)
-    }
-  },
-  "#preset-method": {
-    click: function (e) {
-      var name = $("#presets").selectedOptions[0].label,
-          tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
-      if ($("#presets > optgroup:last-child > [label='" + name + "']")) {
-        preset_stored[name] = getData(name);
-        store.add(preset_stored[name]);
-        $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
-        $("#preset-method").textContent = "Delete preset"
-      } else {
-        delete preset_stored[name];
-        store.index("name").openCursor(IDBKeyRange.only(name)).onsuccess = function (e) {
-          var csr = e.target.result;
-          if (csr) store.delete(csr.primaryKey)
-        };
-        $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
-      }
-    }
   }
-});
-
-var THREEx = THREEx || {};
-THREEx.WindowResize	= function (renderer, camera) {
-  var callback	= function () {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener("resize", callback, false);
-  return {
-    stop: function () {
-      window.removeEventListener("resize", callback);
-    }
-  };
-};
-THREEx.WindowResize(renderer, camera)
+})

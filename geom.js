@@ -1,21 +1,22 @@
+//User functions
 var sin = Math.sin, cos = Math.cos, tan = Math.tan, exp = Math.exp, pow = Math.pow, sqrt = Math.sqrt,
     abs = Math.abs, ln = Math.log, asin = Math.asin, acos = Math.acos, atan = Math.atan, pi = Math.PI;
 
 /**
-* @author alteredq / http://alteredqualia.com/
-*
-* Port of greggman's ThreeD version of marching cubes to Three.js
-* http://webglsamples.googlecode.com/hg/blob/blob.html
-*/
+ * Based on plot_implicit function with the following notice:
+ *
+ * @author alteredq / http://alteredqualia.com/
+ *
+ * Port of greggman's ThreeD version of marching cubes to Three.js
+ * http://webglsamples.googlecode.com/hg/blob/blob.html
+ */
 function marcubes(data, geom) {
   var f = new Function("x, y, z", "return " + data.equation.split("=")[0]),
-      d = data.range, size = parseInt(data.granularity), mask, g;
-  if (mask = data.mask) g = new Function("x, y, z", "return " + mask.split("<")[0]);
+      r = data.range, size = parseInt(data.granularity), g, hasMask;
+  if (hasMask = !!data.mask) g = new Function("x, y, z", "return " + data.mask.split("<")[0]);
   
-  var points = [], vals = [], i, j, k, x, y, z,
-      vidx = 0, ins = typeof g === "function", flag;
-  var xm = d[0], xr = d[1] - d[0], ym = d[2], yr = d[3] - d[2], zm = d[4], zr = d[5] - d[4];
-  if (flag = typeof geom === "object") {
+  var inWorker;
+  if (inWorker = typeof geom === "object") {
     var count = 0,
         vert = new Float32Array(geom);
   } else if (typeof geom === "undefined") {
@@ -25,6 +26,8 @@ function marcubes(data, geom) {
         uvs = geom.faceVertexUvs[0]
   }
   
+  var points = [], vals = [], i, j, k, x, y, z,
+      xm = r[0], xr = r[1] - r[0], ym = r[2], yr = r[3] - r[2], zm = r[4], zr = r[5] - r[4];
   for (k = 0; k < size; k++)
   for (j = 0; j < size; j++)
   for (i = 0; i < size; i++) {
@@ -32,7 +35,7 @@ function marcubes(data, geom) {
     y = ym + yr * j / (size - 1);
     z = zm + zr * k / (size - 1);
     points.push(new THREE.Vector3(x, y, z));
-    if (ins) vals.push( Math.max(f(x, y, z), g(x, y, z)) );
+    if (hasMask) vals.push( Math.max(f(x, y, z), g(x, y, z)) );
     else vals.push( f(x, y, z) );
   }
 
@@ -57,9 +60,7 @@ function marcubes(data, geom) {
         val6 = vals[pyz],
         val7 = vals[pxyz];
 
-    var cubeidx = 0,
-        isolvl = 0;
-
+    var cubeidx = 0, isolvl = 0;
     if(val0 < isolvl) cubeidx |= 1;
     if(val1 < isolvl) cubeidx |= 2;
     if(val2 < isolvl) cubeidx |= 8;
@@ -76,35 +77,33 @@ function marcubes(data, geom) {
     if (bits & 2) vlist[1] = points[px].clone().lerp(points[pxy], (isolvl - val1)/(val3 - val1));
     if (bits & 4) vlist[2] = points[py].clone().lerp(points[pxy], (isolvl - val2)/(val3 - val2));
     if (bits & 8) vlist[3] = points[p].clone().lerp(points[py], (isolvl - val0)/(val2 - val0));
-
     if (bits & 16) vlist[4] = points[pz].clone().lerp(points[pxz], (isolvl - val4)/(val5 - val4));
     if (bits & 32) vlist[5] = points[pxz].clone().lerp(points[pxyz], (isolvl - val5)/(val7 - val5));
     if (bits & 64) vlist[6] = points[pyz].clone().lerp(points[pxyz], (isolvl - val6)/(val7 - val6));
     if (bits & 128) vlist[7] = points[pz].clone().lerp(points[pyz], (isolvl - val4)/(val6 - val4));
-
     if (bits & 256) vlist[8] = points[p].clone().lerp(points[pz], (isolvl - val0)/(val4 - val0));
     if (bits & 512) vlist[9] = points[px].clone().lerp(points[pxz], (isolvl - val1)/(val5 - val1));
     if (bits & 1024) vlist[10] = points[pxy].clone().lerp(points[pxyz], (isolvl - val3)/(val7 - val3));
     if (bits & 2048) vlist[11] = points[py].clone().lerp(points[pyz], (isolvl - val2)/(val6 - val2));
 
-    var i = 0;
-    cubeidx *= 16;
-    while (THREE.triTable[cubeidx + i] != -1) {
-      var idx1 = THREE.triTable[cubeidx + i];
-      var idx2 = THREE.triTable[cubeidx + i + 1];
-      var idx3 = THREE.triTable[cubeidx + i + 2];
+    var i = 0, vidx = 0;
+    cubeidx <<= 4;
+    while (THREE.triTable[cubeidx+i] != -1) {
+      var idx1 = THREE.triTable[cubeidx+i];
+      var idx2 = THREE.triTable[cubeidx+i+1];
+      var idx3 = THREE.triTable[cubeidx+i+2];
 
-      if (flag) {
+      if (inWorker) {
         var v1 = vlist[idx1].clone(), v2 = vlist[idx2].clone(), v3 = vlist[idx3].clone();
-        vert[count++] = v1.x;
-        vert[count++] = v1.y;
-        vert[count++] = v1.z;
-        vert[count++] = v2.x;
-        vert[count++] = v2.y;
-        vert[count++] = v2.z;
-        vert[count++] = v3.x;
-        vert[count++] = v3.y;
-        vert[count++] = v3.z;
+        vert[count] = v1.x;
+        vert[count+1] = v1.y;
+        vert[count+2] = v1.z;
+        vert[count+3] = v2.x;
+        vert[count+4] = v2.y;
+        vert[count+5] = v2.z;
+        vert[count+6] = v3.x;
+        vert[count+7] = v3.y;
+        vert[count+8] = v3.z;
       } else {
         vert.push(vlist[idx1].clone());
         vert.push(vlist[idx2].clone());
@@ -113,9 +112,10 @@ function marcubes(data, geom) {
         uvs.push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)])
       }
 
+      count += 9
       vidx += 3;
       i += 3;
     }
   }
-  return flag ? [geom, count] : geom
+  return inWorker ? [geom, count] : geom
 }
