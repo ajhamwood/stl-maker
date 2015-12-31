@@ -16,7 +16,5 @@ self.onmessage = function(evt) {
       close()
     }
   };
-  req.onerror = function(e) {
-    close()
-  }
+  req.onerror = close
 }
