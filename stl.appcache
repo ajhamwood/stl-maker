@@ -1,0 +1,18 @@
+CACHE MANIFEST
+# To remove:
+#   1. Rewrite manifest reference in html tag to non-existent file. Eg <html lang="en" manifest="DNE">
+#   2. Update version number in original manifest (ie this file), and in service worker.
+#   3. Wait a reasonable length of time for everyone to reload index.html.
+#   4. Now you're safe (?) to delete manifest and remove manifest attribute from html tag.
+#   5. ???
+#   6. Service workers
+
+# v1 3-1-2016
+index.html
+stl.js
+mclookup.js
+geom.js
+mcworker.js
+three.min.js
+filesaver.min.js
+stl.css

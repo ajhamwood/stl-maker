@@ -494,4 +494,7 @@ addEvents({
       return saveSTL(scene, name)
     }
   }
-})
+});
+
+///Cache
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", { scope: "." })
