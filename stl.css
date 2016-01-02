@@ -29,10 +29,14 @@ progress {
   width: 300px;
   max-width: 40%;
   height: 100%;
-  background: lightskyblue
+  background: lightskyblue;
+  overflow-y: auto
 }
 #navigation > * {
   margin: 1em 0 0 1em;
+}
+#navigation > :last-child {
+  margin-bottom: 1em
 }
 button {
   cursor: pointer

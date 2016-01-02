@@ -22,9 +22,10 @@ THREEx.WindowResize = function (renderer, camera) {
 function $ (sel, node, a) { return (a = [].slice.call( (node || document).querySelectorAll(sel) )).length > 1 ? a : a[0] }
 
 function addEvents (obj) {
+  function add(el) { el.addEventListener(a[c], obj[id][e].bind(el), false) }
   for (var id in obj) for (var e in obj[id]) {
     var el = id ? $(id) : window, a = e.split(" "), b = a.length, c = 0;
-    for (; c < b; c++) el.addEventListener(a[c], obj[id][e].bind(el), false)
+    for (; c < b; c++) el.constructor.name === "Array" ? el.forEach(add) : add(el)
   }
 }
 
@@ -195,12 +196,12 @@ function getData (name) {
   var data = {
     equation: $("#equation").value,
     range: [
-      parseFloat($("#range_lx").value),
-      parseFloat($("#range_ux").value),
-      parseFloat($("#range_ly").value),
-      parseFloat($("#range_uy").value),
-      parseFloat($("#range_lz").value),
-      parseFloat($("#range_uz").value)
+      parseFloat($("#range-lx").value),
+      parseFloat($("#range-ux").value),
+      parseFloat($("#range-ly").value),
+      parseFloat($("#range-uy").value),
+      parseFloat($("#range-lz").value),
+      parseFloat($("#range-uz").value)
     ],
     mask: $("#mask-eq").checked ? $("#mask-equation").value : null,
     granularity: $("#granularity").value
@@ -210,12 +211,12 @@ function getData (name) {
 }
 function setData (data) {
   $("#equation").value = data.equation;
-  $("#range_lx").value = data.range[0];
-  $("#range_ux").value = data.range[1];
-  $("#range_ly").value = data.range[2];
-  $("#range_uy").value = data.range[3];
-  $("#range_lz").value = data.range[4];
-  $("#range_uz").value = data.range[5];
+  $("#range-lx").value = data.range[0];
+  $("#range-ux").value = data.range[1];
+  $("#range-ly").value = data.range[2];
+  $("#range-uy").value = data.range[3];
+  $("#range-lz").value = data.range[4];
+  $("#range-uz").value = data.range[5];
   $("#mask-eq").checked = !!data.mask;
   $("#mask-equation").value = data.mask;
   $("#granularity").value = data.granularity
@@ -408,6 +409,16 @@ addEvents({
           if (csr) store.delete(csr.primaryKey)
         };
         $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
+      }
+    }
+  },
+  "[id|=range]": {
+    "change blur": function (e) {
+      if ($("#origin-lock").checked) {
+        var val = e.target.value;
+        $("[id|=range]").forEach(function (field, i) {
+          field.value = [-1, 1][i % 2] * Math.abs(parseFloat(val))
+        })
       }
     }
   }
