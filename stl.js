@@ -76,27 +76,25 @@ function updateMaterial() {
 var obj;
 function create_object() {
   var objnew = new THREE.Mesh(geom, material);
-  objnew.rotation.x = -Math.random();
-  objnew.rotation.y = Math.random();
-  objnew.rotation.z = Math.random();
+  objnew.rotation.set(Math.random(), Math.random(), Math.random());
   scene.add(objnew);
   if(obj) {
     objnew.rotation = obj.rotation;
     objnew.scale = obj.scale;
-    scene.remove(obj);
+    scene.remove(obj)
   }
+  rotV.set(Math.random()/5, Math.random()/5, Math.random()/5, 1).normalize();
   obj = objnew;
 }
 
 var mouse_down = false,
-    mouse = new THREE.Vector2(0, 0),
-    mousePrev = new THREE.Vector2(0, 0),
-    pinchScale = new THREE.Vector3(1, 1, 1),
-    touch1 = new THREE.Vector2(0, 0),
-    touch2 = new THREE.Vector2(0, 0),
-    touch1OnPinch = new THREE.Vector2(0, 0),
-    touch2OnPinch = new THREE.Vector2(0, 0),
-    angularV = new THREE.Quaternion(0, 0, 0, 1);
+    mouse = new THREE.Vector2(),
+    mousePrev = new THREE.Vector2(),
+    touch1 = new THREE.Vector2(),
+    touch2 = new THREE.Vector2(),
+    touch1Prev = new THREE.Vector2(),
+    touch2Prev = new THREE.Vector2(),
+    rotV = new THREE.Quaternion();
 addEvents({
   "": {
     "DOMMouseScroll, mousewheel, wheel": function (e) {
@@ -132,7 +130,7 @@ addEvents({
         mouse.set(event.clientX, event.clientY);
         var axis = new THREE.Vector3(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(obj.quaternion.clone().inverse()),
             rot = new THREE.Quaternion().setFromAxisAngle(axis, axis.length() * rotationSensitivity).normalize();
-        angularV.multiply(rot);
+        rotV.multiply(rot);
         mousePrev.copy(mouse)
       }
     },
@@ -141,40 +139,52 @@ addEvents({
       if ( event.touches.length === 1 ) {
         mousePrev.set(event.touches[0].pageX, event.touches[0].pageY);
       } else if ( event.touches.length === 2 ) {
-        touch1OnPinch.set(event.touches[0].pageX, event.touches[0].pageY);
-        touch2OnPinch.set(event.touches[1].pageX, event.touches[1].pageY)
+        touch1Prev.set(event.touches[0].pageX, event.touches[0].pageY);
+        touch2Prev.set(event.touches[1].pageX, event.touches[1].pageY)
       }
     },
     touchmove: function (event) {
       event.preventDefault();
       if ( event.touches.length === 1 ) {
         mouse.set(event.touches[0].pageX, event.touches[0].pageY);
+        if (mousePrev.equals(new THREE.Vector2())) mousePrev.copy(mouse);
         var axis = new THREE.Vector3(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(obj.quaternion.clone().inverse()),
             rot = new THREE.Quaternion().setFromAxisAngle(axis, axis.length() * rotationSensitivity).normalize();
-        angularV.multiply(rot);
+        rotV.multiply(rot);
         mousePrev.copy(mouse)
-        
       } else if ( event.touches.length === 2 ) {
         touch1.set(event.touches[0].pageX, event.touches[0].pageY);
         touch2.set(event.touches[1].pageX, event.touches[1].pageY);
-        factor = touch1.clone().sub(touch2).length() / touch1OnPinch.clone().sub(touch2OnPinch).length();
-        obj.scale.copy(pinchScale.clone().multiplyScalar(factor))
+        var invq = obj.quaternion.clone().inverse(),
+            touchDiff = touch2.clone().sub(touch1),
+            touchDiffPrev = touch2Prev.clone().sub(touch1Prev),
+            axis1 = new THREE.Vector3(0, 0, 1).applyQuaternion(invq),
+            rot1 = new THREE.Quaternion().setFromAxisAngle(axis1, (Math.atan2(touchDiffPrev.y, touchDiffPrev.x) - Math.atan2(touchDiff.y, touchDiff.x))).normalize(),
+            touchCentre = touch1.clone().add(touch2).multiplyScalar(.5),
+            touchCentrePrev = touch1Prev.clone().add(touch2Prev).multiplyScalar(.5),
+            axis2 = new THREE.Vector3(touchCentre.y - touchCentrePrev.y, touchCentre.x - touchCentrePrev.x, 0).applyQuaternion(invq),
+            rot2 = new THREE.Quaternion().setFromAxisAngle(axis2, axis2.length() * rotationSensitivity * 10).normalize();
+        obj.quaternion.multiply(rot1.multiply(rot2));
+        rotV.multiply(rot1.slerp(new THREE.Quaternion(), .9));
+        obj.scale.multiplyScalar(touchDiff.length() / touchDiffPrev.length());
+        touch1Prev.copy(touch1);
+        touch2Prev.copy(touch2)
       }
     },
     touchend: function (event) {
       event.preventDefault();
-      pinchScale.copy(obj.scale)
+      mousePrev.set(0, 0)
     }
   }
 });
 
-var rotationSensitivity = .00002,
-    rotationDecay = .05;
+var rotationSensitivity = .00004,
+    rotationDecay = .03;
 animate();
 function animate () {
   if (obj) {
-    obj.quaternion.multiply(angularV);
-    angularV.slerp(new THREE.Quaternion(), rotationDecay)
+    obj.quaternion.multiply(rotV);
+    rotV.slerp(new THREE.Quaternion(), rotationDecay)
   }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
