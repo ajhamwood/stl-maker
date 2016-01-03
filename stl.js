@@ -95,7 +95,16 @@ var mouse_down = false,
     touch2 = new THREE.Vector2(),
     touch1Prev = new THREE.Vector2(),
     touch2Prev = new THREE.Vector2(),
-    rotV = new THREE.Quaternion();
+    rotV = new THREE.Quaternion(),
+    touchDiff = new THREE.Vector2(),
+    touchDiffPrev = new THREE.Vector2(),
+    touchCentre = new THREE.Vector2(),
+    touchCentrePrev = new THREE.Vector2(),
+    axis1 = new THREE.Vector3(),
+    axis2 = new THREE.Vector3(),
+    rot1 = new THREE.Quaternion(),
+    rot2 = new THREE.Quaternion(),
+    adjq = new THREE.Quaternion();
 addEvents({
   "": {
     "DOMMouseScroll, mousewheel, wheel": function (e) {
@@ -129,9 +138,9 @@ addEvents({
       event.preventDefault();
       if (mouse_down) {
         mouse.set(event.clientX, event.clientY);
-        var axis = new THREE.Vector3(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(obj.quaternion.clone().inverse()),
-            rot = new THREE.Quaternion().setFromAxisAngle(axis, axis.length() * rotationSensitivity).normalize();
-        rotV.multiply(rot);
+        axis1.set(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(adjq.copy(obj.quaternion).inverse());
+        rot1.setFromAxisAngle(axis1, axis1.length() / obj.scale.length() * rotationSensitivity).normalize();
+        rotV.multiply(rot1);
         mousePrev.copy(mouse)
       }
     },
@@ -146,27 +155,27 @@ addEvents({
     },
     touchmove: function (event) {
       event.preventDefault();
+      adjq.copy(obj.quaternion).inverse();
       if ( event.touches.length === 1 ) {
         mouse.set(event.touches[0].pageX, event.touches[0].pageY);
-        if (mousePrev.equals(new THREE.Vector2())) mousePrev.copy(mouse);
-        var axis = new THREE.Vector3(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(obj.quaternion.clone().inverse()),
-            rot = new THREE.Quaternion().setFromAxisAngle(axis, axis.length() * rotationSensitivity).normalize();
-        rotV.multiply(rot);
+        if (mousePrev.x === 0 && mousePrev.y === 0) mousePrev.copy(mouse);
+        axis1.set(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(adjq);
+        rot1.setFromAxisAngle(axis1, axis1.length() / obj.scale.length() * rotationSensitivity).normalize();
+        rotV.multiply(rot1);
         mousePrev.copy(mouse)
       } else if ( event.touches.length === 2 ) {
         touch1.set(event.touches[0].pageX, event.touches[0].pageY);
         touch2.set(event.touches[1].pageX, event.touches[1].pageY);
-        var invq = obj.quaternion.clone().inverse(),
-            touchDiff = touch2.clone().sub(touch1),
-            touchDiffPrev = touch2Prev.clone().sub(touch1Prev),
-            axis1 = new THREE.Vector3(0, 0, 1).applyQuaternion(invq),
-            rot1 = new THREE.Quaternion().setFromAxisAngle(axis1, (Math.atan2(touchDiffPrev.y, touchDiffPrev.x) - Math.atan2(touchDiff.y, touchDiff.x))).normalize(),
-            touchCentre = touch1.clone().add(touch2).multiplyScalar(.5),
-            touchCentrePrev = touch1Prev.clone().add(touch2Prev).multiplyScalar(.5),
-            axis2 = new THREE.Vector3(touchCentre.y - touchCentrePrev.y, touchCentre.x - touchCentrePrev.x, 0).applyQuaternion(invq),
-            rot2 = new THREE.Quaternion().setFromAxisAngle(axis2, axis2.length() * rotationSensitivity * 10).normalize();
+        touchDiff.copy(touch2).sub(touch1);
+        touchDiffPrev.copy(touch2Prev).sub(touch1Prev);
+        axis1.set(0, 0, 1).applyQuaternion(adjq);
+        rot1.setFromAxisAngle(axis1, (Math.atan2(touchDiffPrev.y, touchDiffPrev.x) - Math.atan2(touchDiff.y, touchDiff.x)) / obj.scale.length()).normalize();
+        touchCentre.copy(touch1).add(touch2).multiplyScalar(.5);
+        touchCentrePrev.copy(touch1Prev).add(touch2Prev).multiplyScalar(.5);
+        axis2.set(touchCentre.y - touchCentrePrev.y, touchCentre.x - touchCentrePrev.x, 0).applyQuaternion(adjq);
+        rot2.setFromAxisAngle(axis2, axis2.length() / obj.scale.length() * rotationSensitivity * 10).normalize();
         obj.quaternion.multiply(rot1.multiply(rot2));
-        rotV.multiply(rot1.slerp(new THREE.Quaternion(), .9));
+        rotV.multiply(rot1.slerp(adjq.set(0, 0, 0, 1), .9));
         obj.scale.multiplyScalar(touchDiff.length() / touchDiffPrev.length());
         touch1Prev.copy(touch1);
         touch2Prev.copy(touch2)
@@ -185,7 +194,7 @@ animate();
 function animate () {
   if (obj) {
     obj.quaternion.multiply(rotV);
-    rotV.slerp(new THREE.Quaternion(), rotationDecay)
+    rotV.slerp(adjq.set(0, 0, 0, 1), rotationDecay)
   }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
