@@ -25,7 +25,7 @@ function addEvents (obj) {
   function add(el) { el.addEventListener(a[c], obj[id][e].bind(el), false) }
   for (var id in obj) for (var e in obj[id]) {
     var el = id ? $(id) : window, a = e.split(" "), b = a.length, c = 0;
-    for (; c < b; c++) el.constructor.name === "Array" ? el.forEach(add) : add(el)
+    for (; c < b; c++) typeof el === "undefined" ? 0 : el.constructor.name === "Array" ? el.forEach(add) : add(el)
   }
 }
 
@@ -213,7 +213,7 @@ function getData (name) {
       parseFloat($("#range-uz").value)
     ],
     mask: $("#mask-eq").checked ? $("#mask-equation").value : null,
-    granularity: $("#granularity").value
+    granularity: parseInt($("#granularity").value)
   };
   if (typeof name !== "undefined") data.name = name;
   return data
@@ -261,27 +261,36 @@ req.onsuccess = function (e) {
     }
   }
   tx.oncomplete = function (e) {
-    $("#presets")[0].selected = true;
+    if ("selectedPreset" in settings) preset_prev = settings.selectedPreset;
+    $("#presets")[preset_prev].selected = true;
     $("#presets").dispatchEvent(new Event("change"));
-    $("#run").dispatchEvent(new Event("click"))
+    if (mode === "edit" && "" in preset_tmp) setData(preset_tmp[""]);
+    if (settings.autorun) $("#run").dispatchEvent(new Event("click"))
   }
 };
+req.onerror = function (e) {
+  return true
+}
 
 var mcworker;
 function init_worker() {
   mcworker = new Worker("mcworker.js");
   mcworker.onmessage = function (e) {
-    var i = 0, c = 0, div;
+    var i = 0, c = 0, div, count;
     if (typeof e.data !== "object") return $("progress").value = e.data;
     geom = new THREE.Geometry();
     var vert = new Float32Array(e.data);
     var tx = db.transaction("worker", "readwrite"), csr = tx.objectStore("worker").openCursor();
     csr.onsuccess = function (e) {
       count = csr.result.value.count;
-      div = Math.floor(count / 25);
+      div = Math.floor(count / 25)
     };
-    tx.oncomplete = function () { setTimeout(build_object, 0) };
+    tx.oncomplete = function () {
+      db.transaction("worker", "readwrite").objectStore("worker").clear();
+      setTimeout(build_object, 0)
+    };
     function build_object () {
+      var V2a = new THREE.Vector2(0, 1), V2b = new THREE.Vector2(0, 1), V2c = new THREE.Vector2(1, 1);
       while (i < count) {
         geom.vertices.push(
           new THREE.Vector3(vert[i], vert[i+1], vert[i+2]),
@@ -289,7 +298,7 @@ function init_worker() {
           new THREE.Vector3(vert[i+6], vert[i+7], vert[i+8])
         );
         geom.faces.push(new THREE.Face3(c, c+1, c+2));
-        geom.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(1, 1)]);
+        geom.faceVertexUvs[0].push([V2a, V2b, V2c]);
         i = i+9;
         c = c+3;
         if (i % div < 9) {
@@ -297,8 +306,7 @@ function init_worker() {
           return setTimeout(build_object, 0)
         }
       }
-      db.transaction("worker", "readwrite").objectStore("worker").clear();
-      $("#progress").classList.toggle("hide")
+      $("#progress").classList.toggle("hide");
       geom.computeFaceNormals();
       updateMaterial();
       create_object()
@@ -337,6 +345,29 @@ var preset_prev = 0, preset_tmp = {}, preset_stored = {}, preset_lib = {
   }
 };
 
+var settings = JSON.parse(sessionStorage.stl || "{}"), mode = "select";
+if ("autorun" in settings) $("#autorun").checked = settings.autorun;
+if ("sessionPresets" in settings) {
+  preset_tmp = settings.sessionPresets
+  for (n in preset_tmp) {
+    if (n === "") continue;
+    var o = $("#presets > optgroup:last-child").insertBefore($("#new-preset").firstChild.cloneNode(false), $("#presets option[label=New]"));
+    o.label = o.textContent = n
+  }
+}
+if ("mode" in settings) mode = settings.mode;
+if (Object.keys(settings).length === 0) updateSettings({
+  autorun: true,
+  sessionPresets: {},
+  selectedPreset: 0,
+  mode: "select"
+})
+function updateSettings(object) {
+  if ("mode" in object && object.mode === "select" && "sessionPresets" in object) delete object.sessionPresets[""];
+  if (object) for (key in object) settings[key] = object[key];
+  sessionStorage.stl = JSON.stringify(settings)
+}
+
 addEvents({
   "#run": {
     click: function () {
@@ -351,7 +382,7 @@ addEvents({
           var buf = new ArrayBuffer(1024*1024*32);
           mcworker.postMessage(buf, [buf])
         };
-        store.add(data)
+        store.clear().onsuccess = function () { store.add(data) }
       } else {
         geom = marcubes(data);
         geom.computeFaceNormals();
@@ -364,23 +395,28 @@ addEvents({
   
   "#presets": {
     change: function (e) {
-      $("#preset-method").textContent = "Delete preset";
       if (e.target.selectedIndex === e.target.options.length - 1) {
-        setData({ equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 });
+        if (mode === "select") setData({ equation: "", range: [-1, 1, -1, 1, -1, 1], mask: null, granularity: 40 });
         $("#preset-name").classList.toggle("hide");
         $("#preset-name").focus();
-        $("#mask-equation").value = "";
+        if (mode === "select") $("#mask-equation").value = "";
         $("#preset-method").textContent = "Save as preset"
       } else {
-        var label = $("#presets")[preset_prev].label;
+        var label = $("#presets")[preset_prev].label,
+            currLabel = $("#presets").selectedOptions[0].label;
         if (!(label in preset_tmp || label in preset_stored)) {
           preset_tmp[label] = getData(label);
         }
-        if ($("#presets > optgroup:first-child").childNodes.length > (preset_prev = e.target.selectedIndex)) {
-          setData( preset_stored[$("#presets").selectedOptions[0].label] )
+        preset_prev = e.target.selectedIndex
+        if ($("#presets > optgroup:first-child > [label='" + currLabel + "']")) {
+          $("#preset-method").textContent = "Delete preset";
+          setData( preset_stored[currLabel] )
         } else {
-          setData( preset_tmp[$("#presets").selectedOptions[0].label] )
+          $("#preset-method").textContent = "Save as preset";
+          setData( preset_tmp[currLabel] )
         }
+        if (label !== currLabel) mode = "select";
+        updateSettings({selectedPreset: preset_prev, mode: mode})
       }
     }
   },
@@ -388,7 +424,8 @@ addEvents({
     blur: function (e) {
       if ($("#preset-name").value === "") {
         $("#presets")[preset_prev].selected = true;
-        $("#presets").dispatchEvent(new Event("change"))
+        $("#presets").dispatchEvent(new Event("change"));
+        updateSettings({mode: (mode = "select")})
       } else {
         $("#presets > optgroup:last-child > option:last-child").label =
           $("#presets > optgroup:last-child > option:last-child").textContent = $("#preset-name").value;
@@ -404,7 +441,7 @@ addEvents({
   },
   "#preset-method": {
     click: function (e) {
-      var name = $("#presets").selectedOptions[0].label,
+      var name = $("#presets").selectedOptions[0].label, //preset_curr?
           tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
       if ($("#presets > optgroup:last-child > [label='" + name + "']")) {
         preset_stored[name] = getData(name);
@@ -419,6 +456,7 @@ addEvents({
         };
         $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
       }
+      updateSettings({selectedPreset: $("#presets").selectedIndex})
     }
   },
   "[id|=range]": {
@@ -429,6 +467,28 @@ addEvents({
           field.value = [-1, 1][i % 2] * Math.abs(parseFloat(val))
         })
       }
+    }
+  },
+  
+  "#autorun": {
+    click: function () {
+      updateSettings({autorun: $("#autorun").checked})
+    }
+  },
+  ".data-field": {
+    "change blur": function () {
+      var label = $("#presets")[preset_prev].label;
+      if ($("#presets > optgroup:last-child > [label='" + label + "']")) preset_tmp[label] = getData();
+      var savedPreset = label in preset_stored ? preset_stored[label] : preset_tmp[label];
+      delete savedPreset.name;
+      if (mode === "edit") preset_tmp[""] = getData()
+      if (JSON.stringify(preset_tmp[""]) !== JSON.stringify(savedPreset)) updateSettings({sessionPresets: preset_tmp});
+      else updateSettings({sessionPresets: preset_tmp, mode: (mode = "select")});
+    },
+    focus: function () {
+      if (mode === "edit") return true;
+      mode = "edit";
+      updateSettings({mode: "edit"})
     }
   }
 });

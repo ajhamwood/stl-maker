@@ -1,5 +1,5 @@
 CACHE MANIFEST
-# v1.014 3-1-2016
+# v1.078 5-1-2016
 # To remove:
 #   1. Rewrite manifest reference in html tag to non-existent file. Eg <html lang="en" manifest="DNE">
 #   2. Update version number in original manifest (ie this file), and in service worker.

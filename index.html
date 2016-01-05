@@ -10,8 +10,11 @@
       <!--
 
 TO DO:
+  Idle the animation loop when rotV is empty
+  Replace indexedDB with localForage
   Calculation time estimate
-  Navi design
+  Navi design - Firefox button & select styling, Windows check
+    Preset editing
   Term sliders
 
       -->
@@ -19,6 +22,7 @@ TO DO:
       <div id="progress" class="hide"><progress max="1"></progress></div>
       <div id="toggle" class="minus"></div>
       <nav id="navigation" class="show">
+        <input type="checkbox" id="autorun" checked><span>Autorun</span><br/>
         <button id="run">Graph</button>
         <button id="save">Save as .stl</button>
         <select id="presets">
@@ -30,17 +34,17 @@ TO DO:
         <input id="preset-name" class="hide" placeholder="Required field!">
         <button id="preset-method"></button>
         <label>Equation of the form f(x, y, z) = 0</label>
-        <textarea id="equation"></textarea>
+        <textarea id="equation" class="data-field"></textarea>
         <div>Functions and constants available: sin, cos, tan, exp, pow, sqrt, abs, ln, asin, acos, atan, pi.</div>
         <label>Range</label>
         <input type="checkbox" id="origin-lock" checked><span>Lock origin</span><br/>
-        <input id="range-lx"><span>&lt; x &le;</span><input id="range-ux"><br/>
-        <input id="range-ly"><span>&lt; y &le;</span><input id="range-uy"><br/>
-        <input id="range-lz"><span>&lt; z &le;</span><input id="range-uz"><br/>
+        <input id="range-lx" class="data-field"><span>&lt; x &le;</span><input id="range-ux" class="data-field"><br/>
+        <input id="range-ly" class="data-field"><span>&lt; y &le;</span><input id="range-uy" class="data-field"><br/>
+        <input id="range-lz" class="data-field"><span>&lt; z &le;</span><input id="range-uz" class="data-field"><br/>
         <input type="checkbox" id="mask-eq"><span>Bounding equation of the form f(x, y, z) &lt; 0</span>
-        <textarea id="mask-equation"></textarea>
+        <textarea id="mask-equation" class="data-field"></textarea>
         <label>Granularity</label>
-        <input id="granularity">
+        <input id="granularity" class="data-field">
       </nav>
     </main>
     <div id="stamps" class="hide">
