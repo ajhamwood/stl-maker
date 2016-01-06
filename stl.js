@@ -3,20 +3,11 @@
  * Based on the implicit 3d grapher by guska076 at https://developer.mozilla.org/en-US/demos/detail/implicit-equation-3d-grapher/launch
  */
 
-var THREEx = THREEx || {};
-THREEx.WindowResize = function (renderer, camera) {
-  var callback = function () {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener("resize", callback, false);
-  return {
-    stop: function () {
-      window.removeEventListener("resize", callback);
-    }
-  };
-};
+function windowResize(renderer, camera) {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
 
 ///Utilities
 function $ (sel, node, a) { return (a = [].slice.call( (node || document).querySelectorAll(sel) )).length > 1 ? a : a[0] }
@@ -54,7 +45,7 @@ var view_angle = 45,
 var renderer = new THREE.WebGLRenderer({antialias: true});
 var camera = new THREE.PerspectiveCamera(view_angle, aspect, near, far);
 var scene = new THREE.Scene();
-THREEx.WindowResize(renderer, camera);
+windowResize(renderer, camera);
 scene.add(camera);
 renderer.setSize(width, height);
 container.appendChild(renderer.domElement);
@@ -86,6 +77,7 @@ function create_object() {
   }
   rotV.set(Math.random()/5, Math.random()/5, Math.random()/5, 1).normalize();
   obj = objnew;
+  animate()
 }
 
 var mouse_down = false,
@@ -119,20 +111,27 @@ addEvents({
         if (delta < 0) obj.scale.multiplyScalar(.9);
         else obj.scale.multiplyScalar(10/9);
       }
+      if (Math.abs(rotV.x) < 1e-9 && Math.abs(rotV.y) < 1e-9 && Math.abs(rotV.z) < 1e-9) {
+        rotV.set(1e-9, 1e-9, 1e-9, 1);
+        requestAnimationFrame(animate)
+      }
     },
     resize: function () {
-      THREEx.WindowResize(renderer, camera);
+      windowResize(renderer, camera);
+      if (Math.abs(rotV.x) < 1e-9 && Math.abs(rotV.y) < 1e-9 && Math.abs(rotV.z) < 1e-9) {
+        requestAnimationFrame(function () { renderer.render(scene, camera) })
+      }
     }
   },
   "#renderer": {
     mousedown: function (event) {
       event.preventDefault();
       mousePrev.set(event.clientX, event.clientY);
-      mouse_down = true
-    },
-    mouseup: function (event) {
-      event.preventDefault();
-      mouse_down = false
+      mouse_down = true;
+      if (Math.abs(rotV.x) < 1e-9 && Math.abs(rotV.y) < 1e-9 && Math.abs(rotV.z) < 1e-9) {
+        rotV.set(1e-9, 1e-9, 1e-9, 1);
+        requestAnimationFrame(animate)
+      }
     },
     mousemove: function (event) {
       event.preventDefault();
@@ -141,8 +140,12 @@ addEvents({
         axis1.set(mouse.y - mousePrev.y, mouse.x - mousePrev.x, 0).applyQuaternion(adjq.copy(obj.quaternion).inverse());
         rot1.setFromAxisAngle(axis1, axis1.length() / obj.scale.length() * rotationSensitivity).normalize();
         rotV.multiply(rot1);
-        mousePrev.copy(mouse)
+        mousePrev.copy(mouse);
       }
+    },
+    "mouseup mouseout": function (event) {
+      event.preventDefault();
+      mouse_down = false
     },
     touchstart: function (event) {
       event.preventDefault();
@@ -151,6 +154,10 @@ addEvents({
       } else if ( event.touches.length === 2 ) {
         touch1Prev.set(event.touches[0].pageX, event.touches[0].pageY);
         touch2Prev.set(event.touches[1].pageX, event.touches[1].pageY)
+      }
+      if (Math.abs(rotV.x) < 1e-9 && Math.abs(rotV.y) < 1e-9 && Math.abs(rotV.z) < 1e-9) {
+        rotV.set(1e-9, 1e-9, 1e-9, 1);
+        requestAnimationFrame(animate)
       }
     },
     touchmove: function (event) {
@@ -190,14 +197,13 @@ addEvents({
 
 var rotationSensitivity = .00004,
     rotationDecay = .03;
-animate();
 function animate () {
   if (obj) {
     obj.quaternion.multiply(rotV);
     rotV.slerp(adjq.set(0, 0, 0, 1), rotationDecay)
   }
   renderer.render(scene, camera);
-  requestAnimationFrame(animate);
+  if (Math.abs(rotV.x) > 1e-12 && Math.abs(rotV.y) > 1e-12 && Math.abs(rotV.z) > 1e-12) requestAnimationFrame(animate);
 }
 
 ///Form data -> web worker -> webGL context
