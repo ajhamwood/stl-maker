@@ -99,7 +99,7 @@ var mouse_down = false,
     adjq = new THREE.Quaternion();
 addEvents({
   "": {
-    "DOMMouseScroll, mousewheel, wheel": function (e) {
+    "mousewheel wheel": function (e) {
       var delta = 0;
       e = e || window.event;
       if (e.wheelDelta) {
@@ -121,7 +121,8 @@ addEvents({
       if (Math.abs(rotV.x) < 1e-9 && Math.abs(rotV.y) < 1e-9 && Math.abs(rotV.z) < 1e-9) {
         requestAnimationFrame(function () { renderer.render(scene, camera) })
       }
-    }
+    },
+    unload: dataFieldChanged
   },
   "#renderer": {
     mousedown: function (event) {
@@ -280,7 +281,7 @@ req.onerror = function (e) {
 
 var mcworker;
 function init_worker() {
-  mcworker = new Worker("mcworker.js");
+  mcworker = new Worker("js/mcworker.js");
   mcworker.onmessage = function (e) {
     var i = 0, c = 0, div, count;
     if (typeof e.data !== "object") return $("progress").value = e.data;
@@ -369,9 +370,21 @@ if (Object.keys(settings).length === 0) updateSettings({
   mode: "select"
 })
 function updateSettings(object) {
-  if ("mode" in object && object.mode === "select" && "sessionPresets" in object) delete object.sessionPresets[""];
+  if ("mode" in object && object.mode === "select" && "sessionPresets" in object) {
+    delete object.sessionPresets[""];
+    if ("sessionPresets" in settings) delete settings.sessionPresets[""];
+  }
   if (object) for (key in object) settings[key] = object[key];
   sessionStorage.stl = JSON.stringify(settings)
+}
+function dataFieldChanged() {
+  var label = $("#presets")[preset_prev].label;
+  if ($("#presets > optgroup:last-child > [label='" + label + "']")) preset_tmp[label] = getData();
+  var savedPreset = label in preset_stored ? preset_stored[label] : preset_tmp[label];
+  delete savedPreset.name;
+  if (mode === "edit") preset_tmp[""] = getData()
+  if (JSON.stringify(preset_tmp[""]) !== JSON.stringify(savedPreset)) updateSettings({sessionPresets: preset_tmp});
+  else updateSettings({sessionPresets: preset_tmp, mode: (mode = "select")});
 }
 
 addEvents({
@@ -398,7 +411,7 @@ addEvents({
       return false
     }
   },
-  
+
   "#presets": {
     change: function (e) {
       if (e.target.selectedIndex === e.target.options.length - 1) {
@@ -431,7 +444,6 @@ addEvents({
       if ($("#preset-name").value === "") {
         $("#presets")[preset_prev].selected = true;
         $("#presets").dispatchEvent(new Event("change"));
-        updateSettings({mode: (mode = "select")})
       } else {
         $("#presets > optgroup:last-child > option:last-child").label =
           $("#presets > optgroup:last-child > option:last-child").textContent = $("#preset-name").value;
@@ -449,18 +461,18 @@ addEvents({
     click: function (e) {
       var name = $("#presets").selectedOptions[0].label, //preset_curr?
           tx = db.transaction("presets", "readwrite"), store = tx.objectStore("presets");
-      if ($("#presets > optgroup:last-child > [label='" + name + "']")) {
-        preset_stored[name] = getData(name);
-        store.add(preset_stored[name]);
-        $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
-        $("#preset-method").textContent = "Delete preset"
-      } else {
+      if ($("#presets > optgroup:first-child > [label='" + name + "']")) {
         delete preset_stored[name];
         store.index("name").openCursor(IDBKeyRange.only(name)).onsuccess = function (e) {
           var csr = e.target.result;
           if (csr) store.delete(csr.primaryKey)
         };
         $("#presets").selectedOptions[0].parentNode.removeChild($("#presets").selectedOptions[0])
+      } else {
+        preset_stored[name] = getData(name);
+        store.add(preset_stored[name]);
+        $("#presets > optgroup:first-child").appendChild($("#presets").selectedOptions[0]);
+        $("#preset-method").textContent = "Delete preset"
       }
       updateSettings({selectedPreset: $("#presets").selectedIndex})
     }
@@ -475,22 +487,14 @@ addEvents({
       }
     }
   },
-  
+
   "#autorun": {
     click: function () {
       updateSettings({autorun: $("#autorun").checked})
     }
   },
   ".data-field": {
-    "change blur": function () {
-      var label = $("#presets")[preset_prev].label;
-      if ($("#presets > optgroup:last-child > [label='" + label + "']")) preset_tmp[label] = getData();
-      var savedPreset = label in preset_stored ? preset_stored[label] : preset_tmp[label];
-      delete savedPreset.name;
-      if (mode === "edit") preset_tmp[""] = getData()
-      if (JSON.stringify(preset_tmp[""]) !== JSON.stringify(savedPreset)) updateSettings({sessionPresets: preset_tmp});
-      else updateSettings({sessionPresets: preset_tmp, mode: (mode = "select")});
-    },
+    "change blur": dataFieldChanged,
     focus: function () {
       if (mode === "edit") return true;
       mode = "edit";
@@ -555,7 +559,7 @@ THREE.STLBinaryExporter.prototype = {
 /**
  * Based on gist by kjlubick at https://gist.github.com/kjlubick/fb6ba9c51df63ba0951f
  */
-function saveSTL( scene, name ){  
+function saveSTL( scene, name ){
   var exporter = new THREE.STLBinaryExporter();
   var stlString = exporter.parse( scene );
   var blob = new Blob([stlString], {type: 'application/octet-binary'});

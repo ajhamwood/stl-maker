@@ -1,4 +1,4 @@
-self.importScripts("three.min.js", "geom.js", "mclookup.js");
+self.importScripts("../vendor/three.min.js", "geom.js", "mclookup.js");
 
 self.onmessage = function(evt) {
   var geom, req = self.indexedDB.open("stl", 1);

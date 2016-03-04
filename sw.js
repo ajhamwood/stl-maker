@@ -1,4 +1,4 @@
-var cacheName = "v1.099 5-1-2016";
+var cacheName = "v1.108 4-3-2016";
 
 self.addEventListener("install", function(event) {
   event.waitUntil(
@@ -6,13 +6,13 @@ self.addEventListener("install", function(event) {
       return cache.addAll([
         "/",
         "index.html",
-        "stl.js",
-        "mclookup.js",
-        "geom.js",
-        "mcworker.js",
-        "three.min.js",
-        "filesaver.min.js",
-        "stl.css"
+        "js/stl.js",
+        "js/mclookup.js",
+        "js/geom.js",
+        "js/mcworker.js",
+        "vendor/three.min.js",
+        "vendor/filesaver.min.js",
+        "css/stl.css"
       ]);
     }).then(function () { self.skipWaiting() })
   )
